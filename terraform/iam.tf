@@ -152,6 +152,15 @@ resource "aws_iam_user_policy" "github_actions_policy" {
           aws_iam_role.ecs_execution_role.arn,
           aws_iam_role.ecs_task_role.arn
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:DescribeLoadBalancers",
+          "elasticloadbalancing:DescribeTargetGroups",
+          "elasticloadbalancing:DescribeTargetHealth"
+        ]
+        Resource = "*"
       }
     ]
   })

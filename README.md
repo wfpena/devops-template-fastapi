@@ -16,9 +16,9 @@ FastAPI application on AWS ECS with Terraform and GitHub Actions CI/CD.
 **Infrastructure**: VPC (multi-AZ) → ALB → ECS Fargate (private subnets) → ECR + CloudWatch + IAM
 
 **Components**:
-- VPC with public/private subnets across 2 AZs
-- Application Load Balancer
-- ECS Fargate cluster (2 tasks)
+- VPC with public/private subnets across 2 AZs (us-east-1a, us-east-1b)
+- Application Load Balancer (cross-AZ)
+- ECS Fargate cluster with 2 task instances
 - ECR for Docker images
 - CloudWatch logs and alarms
 - IAM roles with least-privilege
@@ -92,13 +92,57 @@ Triggered on push to `main`.
 
 View logs: `aws logs tail /ecs/eloquent-ai-app --follow`
 
-## Design Decisions
+## Design Decisions & Trade-offs
 
-- **Fargate**: No server management, simpler than EC2
-- **Multi-AZ**: HA at ~2x cost (NAT Gateways)
-- **Private subnets**: Better security
-- **ALB**: HTTP/HTTPS routing vs NLB
-- **Local Terraform state**: Simpler for demo (use S3 for production)
+### Key Decisions
+
+**Fargate over EC2**: Chose serverless containers for zero server management and automatic scaling. Trade-off: ~20% more expensive than EC2 but significantly less operational overhead.
+
+**Multi-AZ Deployment**: Deployed across 2 availability zones for high availability. Trade-off: Doubles NAT Gateway costs ($65/month) but provides resilience against AZ failures.
+
+**Private Subnets for ECS**: Tasks run in private subnets with no direct internet access. Trade-off: Requires NAT Gateways ($$$) but significantly improves security posture.
+
+**Application Load Balancer**: Chose ALB for HTTP/HTTPS routing and health checks. Trade-off: More expensive than NLB but provides better application-layer features.
+
+**Local Terraform State**: Used local state files for simplicity. Trade-off: Not suitable for team collaboration (would use S3 + DynamoDB locking in production).
+
+**GitHub Actions over Jenkins**: Native GitHub integration, no infrastructure to manage. Trade-off: Less flexible than self-hosted Jenkins but much simpler for solo/small teams.
+
+**Direct AWS Credentials**: Used IAM user access keys for GitHub Actions. Trade-off: Requires manual rotation vs OIDC (OpenID Connect) which is more secure but complex to set up.
+
+### What I'd Do Differently With More Time
+
+**Security Enhancements**:
+- Implement HTTPS with ACM certificate and Route 53 custom domain
+- Add AWS WAF for DDoS protection and request filtering
+- Migrate to GitHub Actions OIDC for keyless authentication
+- Use AWS Secrets Manager for sensitive environment variables
+- Enable GuardDuty and Security Hub for threat detection
+
+**Production Readiness**:
+- Move Terraform state to S3 with DynamoDB locking for team collaboration
+- Implement blue/green deployments with CodeDeploy
+- Add comprehensive integration and load testing (Locust/k6)
+- Set up proper alerting with PagerDuty/SNS
+- Implement proper backup and disaster recovery procedures
+
+**Observability**:
+- Add distributed tracing with X-Ray or OpenTelemetry
+- Implement structured logging with custom metrics
+- Create Grafana dashboards for real-time monitoring
+- Add application performance monitoring (APM)
+
+**Cost Optimization**:
+- Use VPC endpoints to eliminate NAT Gateway data transfer costs
+- Implement Fargate Spot for non-critical workloads (70% savings)
+- Add auto-scaling policies based on actual traffic patterns
+- Evaluate single-AZ for dev/staging environments
+
+**Development Experience**:
+- Add pre-commit hooks for linting and testing
+- Implement branch protection rules and required PR reviews
+- Add automatic dependency updates with Dependabot
+- Create ephemeral preview environments for PRs
 
 ## Cost
 
@@ -118,5 +162,3 @@ aws logs tail /ecs/eloquent-ai-app --follow
 # Check target health
 aws elbv2 describe-target-health --target-group-arn <ARN>
 ```
-
-# Demo update
