@@ -1,170 +1,165 @@
 # DevOps Technical Challenge
 
-FastAPI application on AWS ECS with Terraform and GitHub Actions CI/CD.
-
-## Features
-
-- Multi-AZ ECS deployment with Fargate
-- Complete Terraform IaC
-- GitHub Actions CI/CD pipeline
-- CloudWatch monitoring and alarms
-- Automated testing and linting
-- Auto-rollback on failure
+FastAPI application deployed to AWS ECS with Terraform IaC and GitHub Actions CI/CD.
 
 ## Architecture
 
-**Infrastructure**: VPC (multi-AZ) → ALB → ECS Fargate (private subnets) → ECR + CloudWatch + IAM
+Multi-AZ deployment across us-east-1a and us-east-1b:
 
-**Components**:
-- VPC with public/private subnets across 2 AZs (us-east-1a, us-east-1b)
-- Application Load Balancer (cross-AZ)
-- ECS Fargate cluster with 2 task instances
-- ECR for Docker images
-- CloudWatch logs and alarms
-- IAM roles with least-privilege
+```mermaid
+graph TB
+    Internet[Internet] --> ALB[Application Load Balancer<br/>eloquent-ai-app-alb]
+    
+    subgraph VPC[VPC 10.0.0.0/16]
+        subgraph AZ1[us-east-1a]
+            PubSub1[Public Subnet<br/>10.0.0.0/24]
+            PrivSub1[Private Subnet<br/>10.0.10.0/24]
+            NAT1[NAT Gateway 1]
+            ECS1[ECS Task 1<br/>FastAPI]
+            
+            PubSub1 --> NAT1
+            NAT1 --> PrivSub1
+            PrivSub1 --> ECS1
+        end
+        
+        subgraph AZ2[us-east-1b]
+            PubSub2[Public Subnet<br/>10.0.1.0/24]
+            PrivSub2[Private Subnet<br/>10.0.11.0/24]
+            NAT2[NAT Gateway 2]
+            ECS2[ECS Task 2<br/>FastAPI]
+            
+            PubSub2 --> NAT2
+            NAT2 --> PrivSub2
+            PrivSub2 --> ECS2
+        end
+        
+        ALB --> ECS1
+        ALB --> ECS2
+        
+        IGW[Internet Gateway] --> PubSub1
+        IGW --> PubSub2
+    end
+    
+    ECS1 --> ECR[ECR Repository]
+    ECS2 --> ECR
+    ECS1 --> CW[CloudWatch<br/>Logs/Alarms]
+    ECS2 --> CW
+    
+    GHA[GitHub Actions<br/>CI/CD] --> ECR
+    GHA --> ECS_Service[ECS Service]
+    
+    style Internet fill:#e1f5ff
+    style ALB fill:#ff9900
+    style ECR fill:#ff9900
+    style ECS1 fill:#ff9900
+    style ECS2 fill:#ff9900
+    style CW fill:#ff9900
+    style VPC fill:#f0f0f0
+    style AZ1 fill:#e8f4f8
+    style AZ2 fill:#e8f4f8
+    style GHA fill:#2dbe4e
+```
+
+**Components**: VPC • ECS Fargate (2 tasks) • ALB • ECR • CloudWatch • IAM • NAT Gateways • Security Groups
+
 
 ## Prerequisites
 
-- AWS Account with admin permissions
-- AWS CLI v2.x, Terraform 1.6+, Docker, Git
-- Configure AWS: `aws configure`
+AWS CLI (configured), Terraform 1.6+, Docker, Python 3.11+
 
-## Quick Start
+## Local Testing
 
-**Local testing**:
 ```bash
-pip install -r requirements.txt
-python app.py
+# Python
+pip install -r requirements.txt && python app.py
+
+# Docker  
+docker build -t app . && docker run -p 8080:8080 app
+
+# Test endpoints
 curl http://localhost:8080/health
+curl http://localhost:8080/api/hello
 ```
 
-**Docker testing**:
-```bash
-docker build -t app .
-docker run -p 8080:8080 app
-```
-
-## Deployment
+## AWS Deployment
 
 ```bash
-# 1. Deploy infrastructure
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform apply
+# Deploy infrastructure
+cd terraform && terraform init && terraform apply
 
-# 2. Build and push Docker image
-ECR_URL=$(terraform output -raw ecr_repository_url)
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_URL
-docker build -t app .
-docker tag app:latest $ECR_URL:latest
-docker push $ECR_URL:latest
+# Add GitHub secrets for CI/CD (get from terraform output)
+# - AWS_ACCESS_KEY_ID
+# - AWS_SECRET_ACCESS_KEY  
+# - AWS_REGION
 
-# 3. Wait ~3 minutes for ECS tasks to start
-terraform output alb_url
+# Push code to trigger automatic deployment
+git push origin main
+
+# Test live application
 curl $(terraform output -raw alb_url)/health
 
-# 4. Destroy when done
+# Cleanup
 terraform destroy
 ```
 
-**For CI/CD**: Add GitHub secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) from `terraform output`
-
 ## CI/CD Pipeline
 
-**GitHub Actions** automatically: lints → tests → builds Docker → pushes to ECR → deploys to ECS → rolls back on failure.
-
-Triggered on push to `main`.
+Automated on push to `main`: Lint → Test → Build → Push to ECR → Deploy to ECS → Rollback on failure
 
 ## Security
 
-**Current Implementation**:
-- Private subnets for ECS (no direct internet)
-- Security groups with least-privilege
-- IAM roles for tasks and execution
-- ECR encryption and image scanning
-- Multi-stage Docker builds
-- **⚠️ HTTP only** (no SSL/TLS certificate)
+**Current**: Private subnets, security groups, IAM roles, ECR encryption, ⚠️ HTTP only (no HTTPS)
 
-**Production Recommendations**:
-- Add HTTPS with ACM certificate and custom domain
-- Implement AWS WAF for DDoS protection
-- Use AWS Secrets Manager for sensitive environment variables
-- Migrate to GitHub Actions OIDC for keyless authentication
+**Production**: Add HTTPS/ACM, WAF, Secrets Manager, OIDC for GitHub Actions
 
 ## Monitoring
 
-**CloudWatch** logs at `/ecs/eloquent-ai-app`, 3 alarms (CPU, Memory, Health), Container Insights enabled.
+CloudWatch logs: `/ecs/eloquent-ai-app` | Alarms: CPU, Memory, Health | Container Insights enabled
 
-View logs: `aws logs tail /ecs/eloquent-ai-app --follow`
+```bash
+aws logs tail /ecs/eloquent-ai-app --follow
+```
 
 ## Design Decisions & Trade-offs
 
-### Key Decisions
+| Decision | Rationale | Trade-off |
+|----------|-----------|-----------|
+| **Fargate over EC2** | Serverless, no server management | +20% cost, less operational overhead |
+| **Multi-AZ (2 zones)** | High availability | 2x NAT Gateway costs ($65/mo), AZ failure resilience |
+| **Private subnets** | Better security | Requires NAT Gateways |
+| **ALB over NLB** | HTTP routing, health checks | Higher cost, better L7 features |
+| **Local Terraform state** | Simplicity | Not team-ready (use S3+DynamoDB for prod) |
+| **GitHub Actions** | Native integration, no infra | Less flexible than Jenkins, simpler |
+| **IAM user credentials** | Simple setup | Manual rotation needed (use OIDC for prod) |
 
-**Fargate over EC2**: Chose serverless containers for zero server management and automatic scaling. Trade-off: ~20% more expensive than EC2 but significantly less operational overhead.
+## Brief Cost Analysis
 
-**Multi-AZ Deployment**: Deployed across 2 availability zones for high availability. Trade-off: Doubles NAT Gateway costs ($65/month) but provides resilience against AZ failures.
+~$115/month: NAT ($65) + ALB ($20) + Fargate ($25) + CloudWatch ($5). Run `terraform destroy` to stop charges.
 
-**Private Subnets for ECS**: Tasks run in private subnets with no direct internet access. Trade-off: Requires NAT Gateways ($$$) but significantly improves security posture.
 
-**Application Load Balancer**: Chose ALB for HTTP/HTTPS routing and health checks. Trade-off: More expensive than NLB but provides better application-layer features.
+### Production Improvements / Future Considerations
 
-**Local Terraform State**: Used local state files for simplicity. Trade-off: Not suitable for team collaboration (would use S3 + DynamoDB locking in production).
+**Security**: HTTPS/ACM + custom domain, WAF, OIDC, Secrets Manager, GuardDuty
 
-**GitHub Actions over Jenkins**: Native GitHub integration, no infrastructure to manage. Trade-off: Less flexible than self-hosted Jenkins but much simpler for solo/small teams.
+**Infrastructure**: S3/DynamoDB Terraform state, blue/green deploys, proper backup/DR
 
-**Direct AWS Credentials**: Used IAM user access keys for GitHub Actions. Trade-off: Requires manual rotation vs OIDC (OpenID Connect) which is more secure but complex to set up.
+**Observability**: X-Ray tracing, structured logging, Grafana dashboards, APM
 
-### What I'd Do Differently With More Time
+**Cost**: VPC endpoints, Fargate Spot (70% savings), auto-scaling, single-AZ dev/staging
 
-**Security Enhancements**:
-- Implement HTTPS with ACM certificate and Route 53 custom domain
-- Add AWS WAF for DDoS protection and request filtering
-- Migrate to GitHub Actions OIDC for keyless authentication
-- Use AWS Secrets Manager for sensitive environment variables
-- Enable GuardDuty and Security Hub for threat detection
+**DevEx**: Pre-commit hooks, branch protection, Dependabot, ephemeral PR environments
 
-**Production Readiness**:
-- Move Terraform state to S3 with DynamoDB locking for team collaboration
-- Implement blue/green deployments with CodeDeploy
-- Add comprehensive integration and load testing (Locust/k6)
-- Set up proper alerting with PagerDuty/SNS
-- Implement proper backup and disaster recovery procedures
-
-**Observability**:
-- Add distributed tracing with X-Ray or OpenTelemetry
-- Implement structured logging with custom metrics
-- Create Grafana dashboards for real-time monitoring
-- Add application performance monitoring (APM)
-
-**Cost Optimization**:
-- Use VPC endpoints to eliminate NAT Gateway data transfer costs
-- Implement Fargate Spot for non-critical workloads (70% savings)
-- Add auto-scaling policies based on actual traffic patterns
-- Evaluate single-AZ for dev/staging environments
-
-**Development Experience**:
-- Add pre-commit hooks for linting and testing
-- Implement branch protection rules and required PR reviews
-- Add automatic dependency updates with Dependabot
-- Create ephemeral preview environments for PRs
-
-## Cost
-
-~$115/month: NAT Gateways ($65), ALB ($20), Fargate ($25), CloudWatch ($5)
-
-Run `terraform destroy` to stop charges.
+---
 
 ## Troubleshooting
 
 ```bash
-# Check ECS service
+# Service status
 aws ecs describe-services --cluster eloquent-ai-app-cluster --services eloquent-ai-app-service
 
-# View logs
+# Logs
 aws logs tail /ecs/eloquent-ai-app --follow
 
-# Check target health
-aws elbv2 describe-target-health --target-group-arn <ARN>
+# ALB health
+aws elbv2 describe-target-health --target-group-arn $(aws elbv2 describe-target-groups --names eloquent-ai-app-tg --query 'TargetGroups[0].TargetGroupArn' --output text)
 ```
