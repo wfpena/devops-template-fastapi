@@ -119,3 +119,4 @@ aws logs tail /ecs/eloquent-ai-app --follow
 aws elbv2 describe-target-health --target-group-arn <ARN>
 ```
 
+# Demo update
