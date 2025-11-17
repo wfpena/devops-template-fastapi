@@ -4,12 +4,12 @@ FastAPI application on AWS ECS with Terraform and GitHub Actions CI/CD.
 
 ## Features
 
-- ✅ Multi-AZ ECS deployment with Fargate
-- ✅ Complete Terraform IaC
-- ✅ GitHub Actions CI/CD pipeline
-- ✅ CloudWatch monitoring and alarms
-- ✅ Automated testing and linting
-- ✅ Auto-rollback on failure
+- Multi-AZ ECS deployment with Fargate
+- Complete Terraform IaC
+- GitHub Actions CI/CD pipeline
+- CloudWatch monitoring and alarms
+- Automated testing and linting
+- Auto-rollback on failure
 
 ## Architecture
 
@@ -68,7 +68,7 @@ curl $(terraform output -raw alb_url)/health
 terraform destroy
 ```
 
-**For CI/CD**: Add GitHub secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) from `terraform output`
+**For CI/CD**: Add GitHub secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) from `terraform output`
 
 ## CI/CD Pipeline
 
@@ -78,13 +78,19 @@ Triggered on push to `main`.
 
 ## Security
 
+**Current Implementation**:
 - Private subnets for ECS (no direct internet)
 - Security groups with least-privilege
 - IAM roles for tasks and execution
 - ECR encryption and image scanning
 - Multi-stage Docker builds
+- **⚠️ HTTP only** (no SSL/TLS certificate)
 
-**For production**: Add HTTPS/ACM, WAF, Secrets Manager, OIDC for GitHub Actions
+**Production Recommendations**:
+- Add HTTPS with ACM certificate and custom domain
+- Implement AWS WAF for DDoS protection
+- Use AWS Secrets Manager for sensitive environment variables
+- Migrate to GitHub Actions OIDC for keyless authentication
 
 ## Monitoring
 
