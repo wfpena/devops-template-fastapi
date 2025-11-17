@@ -13,6 +13,7 @@ env:
   ECR_REPOSITORY: eloquent-ai-app
   ECS_CLUSTER: eloquent-ai-app-cluster
   ECS_SERVICE: eloquent-ai-app-service
+  ECS_TASK_DEFINITION: eloquent-ai-app
   CONTAINER_NAME: eloquent-ai-app-container
 
 jobs:
@@ -110,7 +111,7 @@ jobs:
       - name: Download current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition ${{ env.ECS_CLUSTER }} \
+            --task-definition ${{ env.ECS_TASK_DEFINITION }} \
             --query taskDefinition > task-definition.json
 
       - name: Fill in the new image ID in the Amazon ECS task definition
