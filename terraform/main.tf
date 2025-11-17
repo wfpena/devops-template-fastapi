@@ -183,8 +183,8 @@ resource "aws_lb" "main" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id
 
-  enable_deletion_protection = false
-  enable_http2              = true
+  enable_deletion_protection       = false
+  enable_http2                     = true
   enable_cross_zone_load_balancing = true
 
   tags = {
@@ -232,7 +232,7 @@ resource "aws_lb_listener" "app" {
 
 # ECR Repository
 resource "aws_ecr_repository" "app" {
-  name                 = "${var.project_name}"
+  name                 = var.project_name
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -310,7 +310,7 @@ resource "aws_cloudwatch_log_group" "app" {
 
 # ECS Task Definition
 resource "aws_ecs_task_definition" "app" {
-  family                   = "${var.project_name}"
+  family                   = var.project_name
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   cpu                      = var.fargate_cpu
