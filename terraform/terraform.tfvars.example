@@ -1,0 +1,21 @@
+# Copy this file to terraform.tfvars and adjust the values
+
+aws_region = "us-east-1"
+project_name = "eloquent-ai-app"
+environment = "dev"
+app_version = "1.0.0"
+
+vpc_cidr = "10.0.0.0/16"
+availability_zones = ["us-east-1a", "us-east-1b"]
+
+container_port = 8080
+app_count = 2
+
+fargate_cpu = 256
+fargate_memory = 512
+
+health_check_path = "/health"
+
+# For production, restrict this to specific IPs or VPN
+allowed_cidr_blocks = ["0.0.0.0/0"]
+

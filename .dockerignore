@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+.venv
+venv/
+ENV/
+.pytest_cache
+htmlcov
+.coverage
+
+# Terraform
+terraform/
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Documentation
+*.md
+!README.md
+
+# Scripts
+scripts/
+
+# Tests
+tests/
+
+# Development
+requirements-dev.txt
+Makefile
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
